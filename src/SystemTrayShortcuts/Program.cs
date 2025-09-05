@@ -26,7 +26,7 @@ namespace SystemTrayShortcuts
 		{
 			using var notifyIcon = new NotifyIcon();
 			notifyIcon.Text = c_appCaption;
-			notifyIcon.Icon = SystemIcons.Application;
+			notifyIcon.Icon = NativeMethods.GetShellIcon(NativeMethods.SIID_STUFFEDFOLDER);
 			notifyIcon.Visible = true;
 
 			var contextMenu = new ContextMenuStrip();
