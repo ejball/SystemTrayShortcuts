@@ -24,7 +24,24 @@ namespace SystemTrayShortcuts
 
 		private static void Run()
 		{
-			ShowMessageBox("TODO");
+			using var notifyIcon = new NotifyIcon();
+			notifyIcon.Text = c_appCaption;
+			notifyIcon.Icon = SystemIcons.Application;
+			notifyIcon.Visible = true;
+
+			var contextMenu = new ContextMenuStrip();
+			var exitItem = new ToolStripMenuItem("Exit");
+			exitItem.Click += (_, _) => Application.Exit();
+			contextMenu.Items.Add(exitItem);
+			notifyIcon.ContextMenuStrip = contextMenu;
+
+			notifyIcon.MouseUp += (_, e) =>
+			{
+				if (e.Button == MouseButtons.Left)
+					contextMenu.Show(Cursor.Position);
+			};
+
+			Application.Run();
 		}
 
 		private static void ShowMessageBox(params string[] lines)
@@ -34,6 +51,6 @@ namespace SystemTrayShortcuts
 				caption: c_appCaption);
 		}
 
-		private const string c_appCaption = "SystemTrayShortcuts";
+		private const string c_appCaption = "System Tray Shortcuts";
 	}
 }
