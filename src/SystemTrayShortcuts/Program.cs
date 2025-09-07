@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace SystemTrayShortcuts
 {
 	internal static class Program
@@ -30,26 +32,135 @@ namespace SystemTrayShortcuts
 			notifyIcon.Visible = true;
 
 			var contextMenu = new ContextMenuStrip();
-			var exitItem = new ToolStripMenuItem("Exit");
-			exitItem.Click += (_, _) => Application.Exit();
-			contextMenu.Items.Add(exitItem);
+			AddChildItemsForFileSystemEntries(contextMenu.Items, [Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory)]);
+			contextMenu.Items.Add(new ToolStripSeparator());
+			contextMenu.Items.Add(CreateExitMenuItem());
+
 			notifyIcon.ContextMenuStrip = contextMenu;
 
 			notifyIcon.MouseUp += (_, e) =>
 			{
 				if (e.Button == MouseButtons.Left)
-					contextMenu.Show(Cursor.Position);
+					notifyIcon.GetType().GetMethod("ShowContextMenu", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.Invoke(notifyIcon, null);
 			};
 
 			Application.Run();
 		}
 
-		private static void ShowMessageBox(params string[] lines)
+		private static void AddChildItemsForDirectory(ToolStripItemCollection collection, string directoryPath)
 		{
+			try
+			{
+				if (!Directory.Exists(directoryPath))
+					return;
+
+				const int maxEntries = 100;
+				var topEntries = Directory.EnumerateFileSystemEntries(directoryPath)
+					.Where(entry => !IsHiddenOrSystem(entry))
+					.Take(maxEntries + 1)
+					.ToList();
+
+				AddChildItemsForFileSystemEntries(collection, topEntries.Take(maxEntries));
+
+				if (topEntries.Count > maxEntries)
+				{
+					var moreItem = new ToolStripMenuItem("More...");
+					moreItem.Click += (_, _) => OpenFileSystemEntry(directoryPath);
+					collection.Add(moreItem);
+				}
+			}
+			catch (Exception ex)
+			{
+				collection.Add(new ToolStripMenuItem($"Error: {ex.Message}") { Enabled = false });
+			}
+		}
+
+		private static void AddChildItemsForFileSystemEntries(ToolStripItemCollection collection, IEnumerable<string> paths)
+		{
+			try
+			{
+				foreach (var (path, name, isDirectory) in paths
+					.Select(entry => (Path: entry, Name: Path.GetFileName(entry), IsDirectory: Directory.Exists(entry)))
+					.OrderBy(entry => entry.IsDirectory ? 0 : 1)
+					.ThenBy(entry => entry.Name, StringComparer.InvariantCultureIgnoreCase))
+				{
+					var menuItem = new ToolStripMenuItem(name)
+					{
+						Image = NativeMethods.GetFileIcon(path).ToBitmap(),
+					};
+
+					if (isDirectory)
+					{
+						const string loadingText = "Loading...";
+						menuItem.DropDownItems.Add(loadingText);
+						menuItem.DropDownOpening += (_, _) =>
+						{
+							if (menuItem.DropDownItems is [{ Text: loadingText }])
+							{
+								menuItem.DropDownItems.Clear();
+								AddChildItemsForDirectory(menuItem.DropDownItems, path);
+								if (menuItem.DropDownItems.Count == 0)
+									menuItem.DropDownItems.Add(new ToolStripMenuItem("(Empty)") { Enabled = false });
+							}
+						};
+						menuItem.DoubleClickEnabled = true;
+						menuItem.DoubleClick += (_, _) => OpenFileSystemEntry(path);
+					}
+					else
+					{
+						menuItem.Click += (_, _) => OpenFileSystemEntry(path);
+					}
+
+					collection.Add(menuItem);
+				}
+			}
+			catch (Exception exception)
+			{
+				collection.Add(new ToolStripMenuItem($"Error: {exception.Message}") { Enabled = false });
+			}
+		}
+
+		private static bool IsHiddenOrSystem(string path)
+		{
+			try
+			{
+				var attributes = File.GetAttributes(path);
+				return (attributes & FileAttributes.Hidden) == FileAttributes.Hidden ||
+					(attributes & FileAttributes.System) == FileAttributes.System;
+			}
+			catch
+			{
+				return false;
+			}
+		}
+
+		private static void OpenFileSystemEntry(string path)
+		{
+			try
+			{
+				Process.Start(new ProcessStartInfo
+				{
+					FileName = path,
+					UseShellExecute = true,
+				});
+			}
+			catch (Exception exception)
+			{
+				ShowMessageBox($"Failed to open file: {exception.Message}");
+			}
+		}
+
+		private static ToolStripMenuItem CreateExitMenuItem()
+		{
+			var exitItem = new ToolStripMenuItem("Exit");
+			exitItem.Click += (_, _) => Application.Exit();
+			return exitItem;
+		}
+
+		private static void ShowMessageBox(params string[] lines) =>
 			MessageBox.Show(
 				text: string.Join(Environment.NewLine, lines),
 				caption: c_appCaption);
-		}
 
 		private const string c_appCaption = "System Tray Shortcuts";
 	}
