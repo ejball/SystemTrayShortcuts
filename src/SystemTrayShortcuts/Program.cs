@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Microsoft.Win32;
 
 namespace SystemTrayShortcuts
 {
@@ -266,21 +267,55 @@ namespace SystemTrayShortcuts
 			dialog.AcceptButton = okButton;
 			dialog.CancelButton = cancelButton;
 
-			// TODO: Load current settings into the controls
-			// For now, just show placeholder text
+			// Load current settings into the controls
 			pathsTextBox.Text = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+			startupCheckBox.Checked = IsStartupEnabled();
 
 			if (dialog.ShowDialog() == DialogResult.OK)
 			{
-				// TODO: Save the settings
-				// For now, just show what would be saved
-				var paths = pathsTextBox.Text;
-				var launchOnStartup = startupCheckBox.Checked;
+				SetStartupEnabled(startupCheckBox.Checked);
 
-				// Placeholder - we'll implement actual saving later
-				ShowMessageBox($"Settings saved (placeholder):\nPaths: {paths}\nLaunch on startup: {launchOnStartup}");
+				// TODO: Save the paths setting
+				var paths = pathsTextBox.Text;
+				ShowMessageBox($"Settings saved:\nPaths: {paths}");
 			}
 		}
+
+		private static bool IsStartupEnabled()
+		{
+			try
+			{
+				using var key = Registry.CurrentUser.OpenSubKey(c_windowsRunRegistryPath, writable: false);
+				var registryValue = key?.GetValue(c_appCaption) as string;
+				return registryValue is not null &&
+					string.Equals(registryValue.Trim('"'), GetExecutablePath(), StringComparison.OrdinalIgnoreCase);
+			}
+			catch
+			{
+				return false;
+			}
+		}
+
+		private static void SetStartupEnabled(bool enabled)
+		{
+			try
+			{
+				using var key = Registry.CurrentUser.OpenSubKey(c_windowsRunRegistryPath, writable: true);
+				if (key is not null)
+				{
+					if (enabled)
+						key.SetValue(c_appCaption, $"\"{GetExecutablePath()}\"");
+					else
+						key.DeleteValue(c_appCaption, false);
+				}
+			}
+			catch (Exception exception)
+			{
+				ShowMessageBox($"Failed to update startup setting: {exception.Message}");
+			}
+		}
+
+		private static string GetExecutablePath() => Environment.ProcessPath ?? Application.ExecutablePath;
 
 		private static void ShowMessageBox(params string[] lines) =>
 			MessageBox.Show(
@@ -288,5 +323,6 @@ namespace SystemTrayShortcuts
 				caption: c_appCaption);
 
 		private const string c_appCaption = "System Tray Shortcuts";
+		private const string c_windowsRunRegistryPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
 	}
 }
