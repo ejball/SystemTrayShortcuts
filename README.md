@@ -1,6 +1,6 @@
 # SystemTrayShortcuts
 
-Creates shortcuts in the system tray, with cascading menus for folders.
+Adds shortcuts to the Windows system tray, with cascading menus for folders.
 
 [![Build](https://github.com/ejball/SystemTrayShortcuts/workflows/Build/badge.svg)](https://github.com/ejball/SystemTrayShortcuts/actions?query=workflow%3ABuild)
 
