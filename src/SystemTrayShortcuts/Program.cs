@@ -33,7 +33,7 @@ namespace SystemTrayShortcuts
 			notifyIcon.Visible = true;
 
 			var contextMenu = new ContextMenuStrip();
-			AddChildItemsForFileSystemEntries(contextMenu.Items, [Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory)]);
+			AddChildItemsForFileSystemEntries(contextMenu.Items, GetSavedPaths());
 			contextMenu.Items.Add(new ToolStripSeparator());
 			contextMenu.Items.Add(CreateSettingsMenuItem());
 			contextMenu.Items.Add(CreateExitMenuItem());
@@ -267,17 +267,14 @@ namespace SystemTrayShortcuts
 			dialog.AcceptButton = okButton;
 			dialog.CancelButton = cancelButton;
 
-			// Load current settings into the controls
-			pathsTextBox.Text = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+			pathsTextBox.Text = string.Join(Environment.NewLine, GetSavedPaths());
 			startupCheckBox.Checked = IsStartupEnabled();
 
 			if (dialog.ShowDialog() == DialogResult.OK)
 			{
+				SavePaths(pathsTextBox.Text
+					.Split(['\r', '\n', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
 				SetStartupEnabled(startupCheckBox.Checked);
-
-				// TODO: Save the paths setting
-				var paths = pathsTextBox.Text;
-				ShowMessageBox($"Settings saved:\nPaths: {paths}");
 			}
 		}
 
@@ -317,6 +314,35 @@ namespace SystemTrayShortcuts
 
 		private static string GetExecutablePath() => Environment.ProcessPath ?? Application.ExecutablePath;
 
+		private static List<string> GetSavedPaths()
+		{
+			try
+			{
+				using var key = Registry.CurrentUser.OpenSubKey(c_appRegistryPath, writable: false);
+				var paths = (key?.GetValue("Paths") as string ?? "")
+					.Split(['\r', '\n', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+					.ToList();
+				return paths.Count != 0 ? paths : [Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory)];
+			}
+			catch
+			{
+				return [Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory)];
+			}
+		}
+
+		private static void SavePaths(IEnumerable<string> paths)
+		{
+			try
+			{
+				using var key = Registry.CurrentUser.CreateSubKey(c_appRegistryPath);
+				key.SetValue("Paths", string.Join(";", paths));
+			}
+			catch (Exception exception)
+			{
+				ShowMessageBox($"Failed to save paths setting: {exception.Message}");
+			}
+		}
+
 		private static void ShowMessageBox(params string[] lines) =>
 			MessageBox.Show(
 				text: string.Join(Environment.NewLine, lines),
@@ -324,5 +350,6 @@ namespace SystemTrayShortcuts
 
 		private const string c_appCaption = "System Tray Shortcuts";
 		private const string c_windowsRunRegistryPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
+		private const string c_appRegistryPath = @"SOFTWARE\SystemTrayShortcuts";
 	}
 }
