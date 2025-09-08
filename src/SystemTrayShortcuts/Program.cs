@@ -27,26 +27,34 @@ namespace SystemTrayShortcuts
 
 		private static void Run()
 		{
-			using var notifyIcon = new NotifyIcon();
-			notifyIcon.Text = c_appCaption;
-			notifyIcon.Icon = NativeMethods.GetShellIcon(NativeMethods.SIID_STUFFEDFOLDER);
-			notifyIcon.Visible = true;
+			s_notifyIcon = new NotifyIcon();
+			s_notifyIcon.Text = c_appCaption;
+			s_notifyIcon.Icon = NativeMethods.GetShellIcon(NativeMethods.SIID_STUFFEDFOLDER);
+			s_notifyIcon.Visible = true;
+
+			BuildContextMenu();
+
+			s_notifyIcon.MouseUp += (_, e) =>
+			{
+				if (e.Button == MouseButtons.Left)
+					s_notifyIcon.GetType().GetMethod("ShowContextMenu", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.Invoke(s_notifyIcon, null);
+			};
+
+			Application.Run();
+		}
+
+		private static void BuildContextMenu()
+		{
+			if (s_notifyIcon == null)
+				return;
 
 			var contextMenu = new ContextMenuStrip();
-			AddChildItemsForFileSystemEntries(contextMenu.Items, GetSavedPaths());
+			AddChildItemsForFileSystemEntries(contextMenu.Items, GetSavedPaths(), sort: false);
 			contextMenu.Items.Add(new ToolStripSeparator());
 			contextMenu.Items.Add(CreateSettingsMenuItem());
 			contextMenu.Items.Add(CreateExitMenuItem());
 
-			notifyIcon.ContextMenuStrip = contextMenu;
-
-			notifyIcon.MouseUp += (_, e) =>
-			{
-				if (e.Button == MouseButtons.Left)
-					notifyIcon.GetType().GetMethod("ShowContextMenu", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.Invoke(notifyIcon, null);
-			};
-
-			Application.Run();
+			s_notifyIcon.ContextMenuStrip = contextMenu;
 		}
 
 		private static void AddChildItemsForDirectory(ToolStripItemCollection collection, string directoryPath)
@@ -62,7 +70,7 @@ namespace SystemTrayShortcuts
 					.Take(maxEntries + 1)
 					.ToList();
 
-				AddChildItemsForFileSystemEntries(collection, topEntries.Take(maxEntries));
+				AddChildItemsForFileSystemEntries(collection, topEntries.Take(maxEntries), sort: true);
 
 				if (topEntries.Count > maxEntries)
 				{
@@ -77,14 +85,21 @@ namespace SystemTrayShortcuts
 			}
 		}
 
-		private static void AddChildItemsForFileSystemEntries(ToolStripItemCollection collection, IEnumerable<string> paths)
+		private static void AddChildItemsForFileSystemEntries(ToolStripItemCollection collection, IEnumerable<string> paths, bool sort)
 		{
 			try
 			{
-				foreach (var (path, name, isDirectory) in paths
-					.Select(entry => (Path: entry, Name: Path.GetFileName(entry), IsDirectory: Directory.Exists(entry)))
-					.OrderBy(entry => entry.IsDirectory ? 0 : 1)
-					.ThenBy(entry => entry.Name, StringComparer.InvariantCultureIgnoreCase))
+				var entries = paths
+					.Select(entry => (Path: entry, Name: GetName(entry), IsDirectory: Directory.Exists(entry)));
+
+				if (sort)
+				{
+					entries = entries
+						.OrderBy(entry => entry.IsDirectory ? 0 : 1)
+						.ThenBy(entry => entry.Name, StringComparer.InvariantCultureIgnoreCase);
+				}
+
+				foreach (var (path, name, isDirectory) in entries)
 				{
 					var menuItem = new ToolStripMenuItem(name)
 					{
@@ -116,6 +131,8 @@ namespace SystemTrayShortcuts
 			{
 				collection.Add(new ToolStripMenuItem($"Error: {exception.Message}") { Enabled = false });
 			}
+
+			static string GetName(string path) => Path.GetFileName(path) is { Length: > 0 } name ? name : path;
 		}
 
 		private static bool IsHiddenOrSystem(string path)
@@ -158,7 +175,11 @@ namespace SystemTrayShortcuts
 		private static ToolStripMenuItem CreateExitMenuItem()
 		{
 			var exitItem = new ToolStripMenuItem("Exit");
-			exitItem.Click += (_, _) => Application.Exit();
+			exitItem.Click += (_, _) =>
+			{
+				s_notifyIcon?.Dispose();
+				Application.Exit();
+			};
 			return exitItem;
 		}
 
@@ -271,6 +292,8 @@ namespace SystemTrayShortcuts
 				SavePaths(pathsTextBox.Text
 					.Split(['\r', '\n', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
 				SetStartupEnabled(startupCheckBox.Checked);
+
+				BuildContextMenu();
 			}
 		}
 
@@ -347,5 +370,7 @@ namespace SystemTrayShortcuts
 		private const string c_appCaption = "System Tray Shortcuts";
 		private const string c_windowsRunRegistryPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
 		private const string c_appRegistryPath = @"SOFTWARE\SystemTrayShortcuts";
+
+		private static NotifyIcon? s_notifyIcon;
 	}
 }
