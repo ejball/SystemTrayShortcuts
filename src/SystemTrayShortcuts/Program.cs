@@ -187,9 +187,9 @@ internal static class Program
 	{
 		using var dialog = new Form
 		{
-			Text = "Settings",
-			Size = new Size(500, 400),
-			MinimumSize = new Size(400, 300),
+			Text = $"{c_appCaption} Settings",
+			Size = new Size(640, 480),
+			MinimumSize = new Size(640, 480),
 			StartPosition = FormStartPosition.CenterScreen,
 			FormBorderStyle = FormBorderStyle.Sizable,
 			MaximizeBox = true,
