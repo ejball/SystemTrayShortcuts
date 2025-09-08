@@ -93,17 +93,13 @@ namespace SystemTrayShortcuts
 
 					if (isDirectory)
 					{
-						const string loadingText = "Loading...";
-						menuItem.DropDownItems.Add(loadingText);
+						menuItem.DropDownItems.Add("Loading...");
 						menuItem.DropDownOpening += (_, _) =>
 						{
-							if (menuItem.DropDownItems is [{ Text: loadingText }])
-							{
-								menuItem.DropDownItems.Clear();
-								AddChildItemsForDirectory(menuItem.DropDownItems, path);
-								if (menuItem.DropDownItems.Count == 0)
-									menuItem.DropDownItems.Add(new ToolStripMenuItem("(Empty)") { Enabled = false });
-							}
+							menuItem.DropDownItems.Clear();
+							AddChildItemsForDirectory(menuItem.DropDownItems, path);
+							if (menuItem.DropDownItems.Count == 0)
+								menuItem.DropDownItems.Add(new ToolStripMenuItem("(Empty)") { Enabled = false });
 						};
 						menuItem.DoubleClickEnabled = true;
 						menuItem.DoubleClick += (_, _) => OpenFileSystemEntry(path);
