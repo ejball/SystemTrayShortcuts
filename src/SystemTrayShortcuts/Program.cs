@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using Microsoft.Win32;
 
 namespace SystemTrayShortcuts;
@@ -37,7 +38,7 @@ internal static class Program
 		s_notifyIcon.MouseUp += (_, e) =>
 		{
 			if (e.Button == MouseButtons.Left)
-				s_notifyIcon.GetType().GetMethod("ShowContextMenu", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.Invoke(s_notifyIcon, null);
+				ShowContextMenu(s_notifyIcon);
 		};
 
 		Application.Run();
@@ -366,6 +367,9 @@ internal static class Program
 		MessageBox.Show(
 			text: string.Join(Environment.NewLine, lines),
 			caption: c_appCaption);
+
+	[UnsafeAccessor(UnsafeAccessorKind.Method, Name = "ShowContextMenu")]
+	private static extern void ShowContextMenu(NotifyIcon notifyIcon);
 
 	private const string c_appCaption = "System Tray Shortcuts";
 	private const string c_windowsRunRegistryPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
