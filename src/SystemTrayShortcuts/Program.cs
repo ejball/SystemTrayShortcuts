@@ -133,7 +133,17 @@ internal static class Program
 			collection.Add(new ToolStripMenuItem($"Error: {exception.Message}") { Enabled = false });
 		}
 
-		static string GetName(string path) => Path.GetFileName(path) is { Length: > 0 } name ? name : path;
+		static string GetName(string path)
+		{
+			if (Path.GetFileName(path) is { Length: > 0 } name)
+			{
+				return Path.GetExtension(name).ToUpperInvariant() is ".LNK" or ".URL"
+					? Path.GetFileNameWithoutExtension(name)
+					: name;
+			}
+
+			return path;
+		}
 	}
 
 	private static bool IsHiddenOrSystem(string path)
